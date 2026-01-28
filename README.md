@@ -74,7 +74,7 @@ Navigate to the /server folder and start the Node.js server:
 ```
 node index.js
 ```
-Wait for the success message: ✅ Loaded 857 examples from dataset.json.
+Wait for the success message: ✅ Loaded 257 examples from dataset.json.
 
 ### 2. Start the Frontend
 Navigate to the /client folder and start the React development server:
