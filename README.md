@@ -59,7 +59,7 @@ cd data_scripts
 pip install datasets pandas
 python download_datasets.py
 ```
-
+(move the resultant dataset.json to the server folder)
 ### 5. Frontend Setup
 Navigate to the client directory to install the React-based user interface dependencies:
 ```bash
