@@ -1,38 +1,42 @@
 # AI-Powered Code Collaborator & Compiler
 
-A full-stack web application featuring a real-time, multi-language code editor and a secure execution environment. This platform distinguishes itself with an **AI Debugger** that utilizes **Retrieval-Augmented Generation (RAG)** to provide grounded, high-accuracy fixes for coding errors by referencing professional datasets.
+A high-performance, real-time collaborative code editor and execution environment. Features a "Cyber-Slate" modern dark theme and a specialized **AI Debugger** that uses **Retrieval-Augmented Generation (RAG)** to provide grounded fixes by referencing an extensive professional dataset.
+
+* Lobby: Enter your username and generate a unique Room ID. Use the built-in "Copy" button to invite collaborators. 
+* Editor: Select your language. The editor will sync your choice with all users in the room.
+* Run & Debug: Click RUN CODE. If an error occurs, the AI Debugger will analyze the logs against the 1,500-example dataset to provide a grounded fix.
+* Apply Fix: Use the "Copy Fixed Code" button to grab the AI's suggestion and paste it directly into your editor.
 
 ---
 
-## 🚀 Key Features
+## ✨ Features
 
-* **Multi-Language Support**: Execute C++, Python, and Java code within secure, isolated environments.
-* **IntelliSense & Snippets**: Custom Monaco Editor integration providing instant snippets for common patterns like `cout`, `main`, and `sysout`.
-* **Dockerized Execution**: Uses a custom Docker container (`compiler-box`) to safely compile and run user code, preventing host system vulnerabilities.
-* **Grounded AI Debugging**: Utilizes a **Few-Shot RAG** approach. When code fails, the system queries a local dataset of ~850+ examples to provide "Dataset-Grounded" analysis.
-* **Modern IDE Interface**: Built with React, featuring resizable panels and Markdown-rendered AI insights.
+* **Real-Time Collaboration**: Multi-user synchronization using **Socket.io**, allowing teams to code together in the same room.
+* **Grounded AI Debugging (RAG)**: Now utilizes a local dataset of **1,500+ examples** (CodeSearchNet & MBPP) to provide 🔍 `[DATASET-GROUNDED ANALYSIS]`.
+* **Tiered Dark UI**: A modern "Cyber-Slate" interface with binary-particle background animations and clear visual hierarchy across the Editor, Terminal, and AI panels.
+* **Dynamic Java Support**: Smart backend logic that automatically detects `public class` names to name and compile Java files correctly on the fly.
+* **Custom IntelliSense**: Deep Monaco Editor integration with snippets for C++, Python, and Java (e.g., `public class`, `main`, `sysout`).
+* **Integrated Toolkit**: One-click "Copy Fixed Code" buttons within AI insights and "Clear Console" functionality for a clean workspace.
 
 ---
 
 ## 🏗️ System Architecture
 
-1.  **Frontend**: React.js with Monaco Editor for high-performance code editing.
-2.  **Backend**: Node.js/Express server managing Dockerized execution and Gemini AI integration.
-3.  **Data Layer**: Local `dataset.json` containing professional code patterns from **CodeSearchNet** (C++/Java) and **MBPP** (Python).
+* **Frontend**: React.js with **Monaco Editor** and `react-resizable-panels`.
+* **Collaboration**: **Socket.io** for instant state sync and language selection across clients.
+* **Execution Layer**: Dockerized `compiler-box` isolating C++, Python, and Java runtimes.
+* **Intelligence**: **Google Gemini API** combined with a local FAISS-inspired JSONL search engine.
 
 ---
 
 ## 🛠️ Installation & Setup
 
-Follow these steps to set up the project locally after cloning:
-
 ### 1. Prerequisites
-* **Node.js** (v16 or higher)
+* **Node.js** (v18+)
 * **Docker Desktop** (Must be running)
-* **Python 3.x** (For dataset generation)
+* **Gemini API Key** (From Google AI Studio)
 
-### 2. Backend Setup
-Navigate to the `server` directory and install dependencies:
+### 2. Backend & Docker Setup
 ```bash
 cd server
 npm install
@@ -59,7 +63,7 @@ cd data_scripts
 pip install datasets pandas
 python download_datasets.py
 ```
-(move the resultant dataset.json to the server folder)
+(move the resultant dataset.jsonl to the server folder)
 ### 5. Frontend Setup
 Navigate to the client directory to install the React-based user interface dependencies:
 ```bash
@@ -74,7 +78,7 @@ Navigate to the /server folder and start the Node.js server:
 ```
 node index.js
 ```
-Wait for the success message: ✅ Loaded 257 examples from dataset.json.
+Wait for the success message:✅ Loaded 1500 examples.
 
 ### 2. Start the Frontend
 Navigate to the /client folder and start the React development server:
