@@ -1,70 +1,86 @@
-# Getting Started with Create React App
+# AI-Powered Code Collaborator & Compiler
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A full-stack web application featuring a real-time, multi-language code editor and a secure execution environment. This platform distinguishes itself with an **AI Debugger** that utilizes **Retrieval-Augmented Generation (RAG)** to provide grounded, high-accuracy fixes for coding errors by referencing professional datasets.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## 🚀 Key Features
 
-### `npm start`
+* **Multi-Language Support**: Execute C++, Python, and Java code within secure, isolated environments.
+* **IntelliSense & Snippets**: Custom Monaco Editor integration providing instant snippets for common patterns like `cout`, `main`, and `sysout`.
+* **Dockerized Execution**: Uses a custom Docker container (`compiler-box`) to safely compile and run user code, preventing host system vulnerabilities.
+* **Grounded AI Debugging**: Utilizes a **Few-Shot RAG** approach. When code fails, the system queries a local dataset of ~850+ examples to provide "Dataset-Grounded" analysis.
+* **Modern IDE Interface**: Built with React, featuring resizable panels and Markdown-rendered AI insights.
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+---
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## 🏗️ System Architecture
 
-### `npm test`
+1.  **Frontend**: React.js with Monaco Editor for high-performance code editing.
+2.  **Backend**: Node.js/Express server managing Dockerized execution and Gemini AI integration.
+3.  **Data Layer**: Local `dataset.json` containing professional code patterns from **CodeSearchNet** (C++/Java) and **MBPP** (Python).
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+---
 
-### `npm run build`
+## 🛠️ Installation & Setup
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+Follow these steps to set up the project locally after cloning:
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### 1. Prerequisites
+* **Node.js** (v16 or higher)
+* **Docker Desktop** (Must be running)
+* **Python 3.x** (For dataset generation)
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### 2. Backend Setup
+Navigate to the `server` directory and install dependencies:
+```bash
+cd server
+npm install
+```
 
-### `npm run eject`
+Create a `.env` file in the `server` folder to store your credentials:
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```env
+GEMINI_API_KEY=your_google_gemini_api_key
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### 3. Docker Image Setup
+Build the secure execution environment image to isolate user code:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+docker build -t compiler-box .
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### 4. Dataset Generation (RAG)
+To enable the grounded AI analysis, you must generate the local knowledge base using the provided Python scripts:
 
-## Learn More
+```bash
+cd data_scripts
+pip install datasets pandas
+python download_datasets.py
+```
+(move the resultant dataset.json to the server folder)
+### 5. Frontend Setup
+Navigate to the client directory to install the React-based user interface dependencies:
+```bash
+cd client
+npm install
+```
+ 
+## 🚦 How to Run
+### 1. Start the Backend
+Navigate to the /server folder and start the Node.js server:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+```
+node index.js
+```
+Wait for the success message: ✅ Loaded 257 examples from dataset.json.
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### 2. Start the Frontend
+Navigate to the /client folder and start the React development server:
 
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```
+npm start
+```
+### 3. Access the Application
+Open your browser and go to: `http://localhost:3000`
