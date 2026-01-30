@@ -1,6 +1,6 @@
 FROM ubuntu:22.04
 
-# 1. Install compilers (C++, Python, Java) AND Node.js
+# 1. Install all runtimes and compilers
 RUN apt-get update && apt-get install -y \
     python3 gcc g++ openjdk-17-jdk \
     curl \
@@ -10,20 +10,19 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# 2. Copy dependency files first (for better caching)
-COPY package*.json ./
+# 2. Build the Frontend (code-collaborator)
+COPY code-collaborator/package*.json ./code-collaborator/
+RUN cd code-collaborator && npm install
+COPY code-collaborator/ ./code-collaborator/
+RUN cd code-collaborator && npm run build
+
+# 3. Setup the Backend (server)
 COPY server/package*.json ./server/
-
-# 3. Install dependencies
-RUN npm install
-# If your server folder has its own package.json, install those too:
 RUN cd server && npm install
+COPY server/ ./server/
 
-# 4. Copy the rest of your project files
-COPY . .
-
-# 5. Expose the port (Render uses 10000 by default)
+# 4. Final Prep
 EXPOSE 10000
 
-# 6. Start the server
+# Start the backend
 CMD ["node", "server/index.js"]
