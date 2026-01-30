@@ -47,7 +47,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../code-collaborator/build')));
 
-app.get('(.*)', (req, res) => {
+app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, '../code-collaborator/build', 'index.html'));
 });
 
@@ -171,33 +171,36 @@ app.post('/execute', async (req, res) => {
     const { code, language } = req.body;
     let filename = "";
     let className = "";
-    let dockerCmd = "";
+    let executeCmd = ""; // Using direct commands instead of Docker
 
     // --- Language Logic ---
     if (language === 'java') {
-        // Dynamically extract the public class name to avoid filename mismatches
         const classMatch = code.match(/public\s+class\s+(\w+)/);
         className = classMatch ? classMatch[1] : "Main"; 
         filename = `${className}.java`;
         
-        fs.writeFileSync(path.join(__dirname, filename), code);
-        // Step 1: Compile the specific class file. Step 2: Run that class
-        dockerCmd = `docker run --rm -v "${process.cwd()}:/app" compiler-box sh -c "javac /app/${filename} && java -cp /app ${className}"`;
+        const filePath = path.join(__dirname, filename);
+        fs.writeFileSync(filePath, code);
+
+        // Compile and run directly on the system
+        executeCmd = `javac ${filePath} && java -cp ${__dirname} ${className}`;
     } else {
         const extension = language === 'python' ? 'py' : 'cpp';
         filename = `temp_code.${extension}`;
-        fs.writeFileSync(path.join(__dirname, filename), code);
+        const filePath = path.join(__dirname, filename);
+        fs.writeFileSync(filePath, code);
 
         if (language === 'python') {
-            dockerCmd = `docker run --rm -v "${process.cwd()}:/app" compiler-box python3 /app/${filename}`;
+            executeCmd = `python3 ${filePath}`;
         } else if (language === 'cpp') {
-            dockerCmd = `docker run --rm -v "${process.cwd()}:/app" compiler-box sh -c "g++ /app/${filename} -o /app/out && /app/out"`;
+            const outPath = path.join(__dirname, 'temp_out');
+            executeCmd = `g++ ${filePath} -o ${outPath} && ${outPath}`;
         }
     }
 
     // --- Run and Analyze ---
     try {
-        const { stdout, stderr } = await runCommand(dockerCmd);
+        const { stdout, stderr } = await runCommand(executeCmd);
 
         let aiExplanation = "";
         if (stderr && stderr.trim() !== "") {
@@ -210,14 +213,17 @@ app.post('/execute', async (req, res) => {
     } finally {
         // --- Enhanced Cleanup ---
         const mainFilePath = path.join(__dirname, filename);
+        const cppOutPath = path.join(__dirname, 'temp_out');
+        
         if (fs.existsSync(mainFilePath)) fs.unlinkSync(mainFilePath);
+        if (fs.existsSync(cppOutPath)) fs.unlinkSync(cppOutPath);
+        
         if (language === 'java' && className) {
             const classFile = path.join(__dirname, `${className}.class`);
             if (fs.existsSync(classFile)) fs.unlinkSync(classFile);
         }
     }
 });
-
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, '0.0.0.0', () => {
