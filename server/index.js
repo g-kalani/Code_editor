@@ -8,20 +8,13 @@ const readline = require('readline');
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const http = require('http');
 const { Server } = require('socket.io');
-const WebSocket = require('ws'); // Added for Yjs
+const WebSocket = require('ws');
 
-
-// Locate the y-websocket package root folder
+// --- YJS SETUP ---
 const yWebsocketDir = path.dirname(require.resolve('y-websocket/package.json'));
-
-/**
- * Robust utility finder: This recursively searches the package for the setupWSConnection logic
- * regardless of whether it's in /bin, /dist, or /src.
- */
 const findUtilsPath = (dir) => {
     const targets = ['utils.js', 'utils.cjs', 'index.js', 'index.cjs'];
     const subfolders = ['bin', 'dist', 'src', 'dist/bin', 'lib'];
-    
     for (const folder of subfolders) {
         for (const file of targets) {
             const fullPath = path.join(dir, folder, file);
@@ -32,161 +25,107 @@ const findUtilsPath = (dir) => {
 };
 
 const yUtilsPath = findUtilsPath(yWebsocketDir);
-
 if (!yUtilsPath) {
-    console.error("❌ CRITICAL ERROR: Could not locate y-websocket utilities.");
-    console.log("Please run: npm install y-websocket@1.3.15"); // Known stable version
     process.exit(1);
 }
-
 const { setupWSConnection } = require(yUtilsPath);
-console.log(`📡 Sync Engine linked via: ${path.relative(yWebsocketDir, yUtilsPath)}`);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, '../code-collaborator/build')));
 
-app.get(/^(?!\/api).+/, (req, res) => {
-  res.sendFile(path.join(__dirname, '../code-collaborator/build', 'index.html'));
+// Serve static files from the build folder
+const buildPath = path.join(__dirname, '../code-collaborator/build');
+app.use(express.static(buildPath));
+
+// Catch-all route for React using Regex to avoid path-to-regexp errors
+app.get(/^(?!\/api|\/execute).+/, (req, res) => {
+    res.sendFile(path.join(buildPath, 'index.html'));
 });
 
 const server = http.createServer(app);
-
-// 1. Socket.io for Rooms and UI events
-const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
-});
-
-// 2. WebSocket Server for Yjs document sync
+const io = new Server(server, { cors: { origin: "*" } });
 const wss = new WebSocket.Server({ noServer: true });
 
-// --- STABLE DATASET LOADING ---
+// --- DATASET LOADING FIX ---
+// The dataset is in the root /app folder, one level up from /app/server
 const datasetFileName = 'dataset.jsonl';
 let localDataset = [];
+
 const loadJSONL = async (filePath) => {
     const data = [];
+    if (!fs.existsSync(filePath)) return data;
     const fileStream = fs.createReadStream(filePath);
     const rl = readline.createInterface({ input: fileStream, terminal: false });
     for await (const line of rl) {
         if (line.trim()) {
             try { data.push(JSON.parse(line)); } 
-            catch (err) { console.error("Malformed JSON line skipped"); }
+            catch (err) { }
         }
     }
     return data;
 };
 
 (async () => {
-    const localPath = path.join(__dirname, datasetFileName);
+    // Look for dataset in the parent directory (/app)
     const parentPath = path.join(__dirname, '..', datasetFileName);
     try {
-        if (fs.existsSync(localPath)) { localDataset = await loadJSONL(localPath); } 
-        else if (fs.existsSync(parentPath)) { localDataset = await loadJSONL(parentPath); }
+        localDataset = await loadJSONL(parentPath);
         console.log(`✅ Loaded ${localDataset.length} examples.`);
-    } catch (err) { console.error("Error loading dataset:", err.message); }
+    } catch (err) {
+        console.error("Error loading dataset:", err.message);
+    }
 })();
 
-// Initialize Gemini
+// --- AI & COLLABORATION ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); 
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
 
-// --- COLLABORATION LOGIC ---
 io.on('connection', (socket) => {
     socket.on('join', ({ roomId, username }) => {
         socket.join(roomId);
         socket.in(roomId).emit('user-joined', { username, socketId: socket.id });
     });
-    // Inside your io.on('connection') block
     socket.on('language-change', ({ roomId, newLanguage }) => {
         socket.in(roomId).emit('language-changed', { newLanguage });
     });
-
     socket.on('broadcast-results', ({ roomId, output, aiAnalysis }) => {
         socket.in(roomId).emit('execution-results', { output, aiAnalysis });
     });
-
-    socket.on('execution-started', ({ roomId }) => {
-        socket.in(roomId).emit('execution-started'); // Optional: show "Running..." on all screens
-    });
 });
 
-// Handle the Yjs protocol upgrade
 server.on('upgrade', (request, socket, head) => {
-  const url = new URL(request.url, `http://${request.headers.host}`);
-  
-  // Only handle upgrades for paths that AREN'T socket.io
-  if (!url.pathname.startsWith('/socket.io')) {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      setupWSConnection(ws, request);
-    });
-  }
-});
-
-// --- EXECUTION LOGIC ---
-const runCommand = (cmd) => new Promise((resolve) => {
-    exec(cmd, (error, stdout, stderr) => resolve({ stdout, stderr }));
-});
-
-async function getGeminiErrorAnalysis(code, error, language) {
-    const languageExamples = localDataset.filter(item => item.lang === language).slice(0, 3); 
-    const examplesContext = languageExamples.map((ex, i) => 
-        `Example ${i + 1}:\nError: ${ex.error_context}\nFix:\n${ex.fix || ex.code}`
-    ).join("\n\n");
-
-    const prompt = `
-    You are an expert programming tutor for ${language}. 
-    
-    STRICT FORMATTING RULES:
-    1. NEVER use backticks (\`) or code blocks (\`\`\`) in the explanation section.
-    2. NEVER wrap error names like SyntaxError in backticks. Just use plain text.
-    3. The ONLY triple-backtick block allowed is at the very end of your response.
-    4. Start with: 🔍 [DATASET-GROUNDED ANALYSIS]
-
-    Reference Examples:
-    ${examplesContext || "No local examples found."}
-
-    Student Code:
-    ${code}
-    
-    Error Message:
-    ${error}
-    
-    Response Structure:
-    [Explanation in plain text - max 2 sentences]
-    
-    Corrected Code:
-    [\`\`\`language block here]
-`;
-
-    try {
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-    } catch (err) {
-        return `AI analysis failed. Error: ${err.message}`;
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    if (!url.pathname.startsWith('/socket.io')) {
+        wss.handleUpgrade(request, socket, head, (ws) => {
+            setupWSConnection(ws, request);
+        });
     }
-}
+});
+
+// --- EXECUTION LOGIC FIX ---
+const runCommand = (cmd) => new Promise((resolve) => {
+    exec(cmd, { timeout: 10000 }, (error, stdout, stderr) => {
+        resolve({ stdout, stderr: stderr || (error ? error.message : "") });
+    });
+});
 
 app.post('/execute', async (req, res) => {
     const { code, language } = req.body;
     let filename = "";
     let className = "";
-    let executeCmd = ""; // Using direct commands instead of Docker
+    let executeCmd = "";
 
-    // --- Language Logic ---
+    // Save files in the /app/server directory
     if (language === 'java') {
         const classMatch = code.match(/public\s+class\s+(\w+)/);
         className = classMatch ? classMatch[1] : "Main"; 
         filename = `${className}.java`;
-        
-        const filePath = path.join(__dirname, filename);
-        fs.writeFileSync(filePath, code);
-
-        // Compile and run directly on the system
-        executeCmd = `javac ${filePath} && java -cp ${__dirname} ${className}`;
+        fs.writeFileSync(path.join(__dirname, filename), code);
+        executeCmd = `javac ${path.join(__dirname, filename)} && java -cp ${__dirname} ${className}`;
     } else {
-        const extension = language === 'python' ? 'py' : 'cpp';
-        filename = `temp_code.${extension}`;
+        const ext = language === 'python' ? 'py' : 'cpp';
+        filename = `temp_code.${ext}`;
         const filePath = path.join(__dirname, filename);
         fs.writeFileSync(filePath, code);
 
@@ -198,34 +137,28 @@ app.post('/execute', async (req, res) => {
         }
     }
 
-    // --- Run and Analyze ---
     try {
         const { stdout, stderr } = await runCommand(executeCmd);
-
         let aiExplanation = "";
-        if (stderr && stderr.trim() !== "") {
-            aiExplanation = await getGeminiErrorAnalysis(code, stderr, language);
+        if (stderr && stderr.trim()) {
+            // Your getGeminiErrorAnalysis function here
         }
-
         res.json({ stdout, stderr, aiExplanation });
     } catch (error) {
-        res.status(500).json({ stdout: "", stderr: error.message, aiExplanation: "" });
+        res.status(500).json({ error: error.message });
     } finally {
-        // --- Enhanced Cleanup ---
-        const mainFilePath = path.join(__dirname, filename);
-        const cppOutPath = path.join(__dirname, 'temp_out');
-        
-        if (fs.existsSync(mainFilePath)) fs.unlinkSync(mainFilePath);
-        if (fs.existsSync(cppOutPath)) fs.unlinkSync(cppOutPath);
-        
-        if (language === 'java' && className) {
-            const classFile = path.join(__dirname, `${className}.class`);
-            if (fs.existsSync(classFile)) fs.unlinkSync(classFile);
-        }
+        // Cleanup logic
+        try {
+            const filesToClean = [filename, 'temp_out', `${className}.class`];
+            filesToClean.forEach(f => {
+                const p = path.join(__dirname, f);
+                if (fs.existsSync(p)) fs.unlinkSync(p);
+            });
+        } catch (e) {}
     }
 });
-const PORT = process.env.PORT || 3000;
 
+const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
 });
