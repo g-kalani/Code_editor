@@ -1,11 +1,9 @@
-node_modules/
+# Data files
+data_scripts/*.parquet
+
+# Environment variables
 .env
-.env.local
-.env.*.local
-.DS_Store
-dist/
-build/
-/.vscode/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+
+node_modules/
+**/node_modules/
+server/node_modules/

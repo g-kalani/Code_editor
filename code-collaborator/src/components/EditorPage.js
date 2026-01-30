@@ -18,7 +18,7 @@ function EditorPage() {
   const [output, setOutput] = useState("");
   const [aiAnalysis, setAiAnalysis] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-
+ 
   useEffect(() => {
     socket.connect();
     socket.emit('join', { roomId, username });
@@ -37,7 +37,7 @@ function EditorPage() {
       setOutput("Remote user is running code...");
       setAiAnalysis("");
     });
-
+    
     return () => {
       socket.emit('leave', { roomId });
       socket.off();
@@ -87,7 +87,14 @@ function EditorPage() {
     socket.emit('language-change', { roomId, newLanguage: newLang });
   };
 
-  const handleClearConsole = () => {
+    
+  const handleClearCode = () => {
+    // 1. Clear the Monaco Editor content
+    if (editorRef.current) {
+      editorRef.current.setValue(""); 
+    }
+    
+    // 2. Clear the Terminal Output and AI Analysis panels
     setOutput("");
     setAiAnalysis("");
   };
@@ -181,11 +188,7 @@ function EditorPage() {
         .monaco-editor, .monaco-editor-background, .monaco-editor .margin {
           background-color: #020617 !important;
         }
-        .spinner { width: 14px; height: 14px; border: 2px solid #3b82f6; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        /* ... spinner styles ... */
       `}</style>
 
       <header style={styles.header}>
@@ -201,6 +204,23 @@ function EditorPage() {
           </select>
           <button onClick={handleRun} style={styles.runBtn}>
             RUN CODE
+          </button>
+          
+          {/* NEW: Clear Code button now resides in the header next to the Run button */}
+          <button 
+            onClick={handleClearCode} 
+            style={{ 
+                background: "transparent", 
+                color: "#94a3b8", 
+                border: "1px solid #334155", 
+                padding: "8px 16px", 
+                borderRadius: "8px", 
+                fontWeight: "600", 
+                cursor: "pointer",
+                fontSize: "12px"
+            }}
+          >
+            CLEAR CODE
           </button>
         </div>
         <div style={{ textAlign: "right" }}>
@@ -240,12 +260,6 @@ function EditorPage() {
                 <div style={{ height: "100%", padding: "20px", background: "#0b1120", overflowY: "auto" }}>
                   <div style={styles.panelLabel}>
                     <span>Terminal Output</span>
-                    <button 
-                        onClick={handleClearConsole} 
-                        style={{ background: "none", border: "1px solid #334155", color: "#64748b", fontSize: "10px", padding: "2px 8px", borderRadius: "4px", cursor: "pointer" }}
-                    >
-                        CLEAR
-                    </button>
                   </div>
                   <pre style={{ margin: 0, color: "#10b981", fontSize: "13px", lineHeight: "1.6", fontFamily: "'Fira Code', monospace" }}>
                     {output || "> Ready to execute..."}
