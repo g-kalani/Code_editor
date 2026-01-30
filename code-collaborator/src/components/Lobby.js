@@ -153,7 +153,7 @@ const Lobby = () => {
 
             <div style={styles.card}>
                 <h1 style={{ fontSize: '26px', fontWeight: '800', marginBottom: '8px', textAlign: 'center', background: 'linear-gradient(to right, #60a5fa, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-                    DevSync Lobby
+                    CodeSync Lobby
                 </h1>
                 <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '30px', textAlign: 'center' }}>
                     Collaborate. Compile. Debug.
