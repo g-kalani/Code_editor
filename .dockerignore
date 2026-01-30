@@ -1,27 +1,10 @@
-# Dependency directories
-**/node_modules/
-**/bower_components/
 
-# Environment and sensitive data
+**/node_modules/
 .env
 .env.*
-
-# Build artifacts and logs
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-out/
 
-# Version control
+
 .git/
-.gitignore
-
-# Project specific exclusions
-code-collaborator/
-data_scripts/
-dataset.json
-README.md
-
-# OS specific files
 .DS_Store
 Thumbs.db
