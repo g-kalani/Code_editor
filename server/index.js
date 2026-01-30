@@ -47,7 +47,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '../code-collaborator/build')));
 
-app.get('/*', (req, res) => {
+app.get(/^(?!\/api).+/, (req, res) => {
   res.sendFile(path.join(__dirname, '../code-collaborator/build', 'index.html'));
 });
 
@@ -226,6 +226,6 @@ app.post('/execute', async (req, res) => {
 });
 const PORT = process.env.PORT || 3000;
 
-app.listen(PORT, '0.0.0.0', () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is running on port ${PORT}`);
 });
