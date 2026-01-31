@@ -1,15 +1,11 @@
-import * as Y from 'yjs';
-import { WebsocketProvider } from 'y-websocket'; // Changed from Webrtc
-import { MonacoBinding } from 'y-monaco';
-
 export const initCollaboration = (editor, roomId) => {
     const ydoc = new Y.Doc();
-
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
+    const serverUrl = process.env.NODE_ENV === 'production' 
+        ? 'wss://code-editor-app-euzi.onrender.com' 
+        : 'ws://localhost:5000';
 
     const provider = new WebsocketProvider(
-        `${protocol}//${host}`, 
+        serverUrl, 
         roomId, 
         ydoc
     );
