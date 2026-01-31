@@ -34,8 +34,9 @@ function EditorPage() {
     });
 
     socket.on('remote-execution-started', () => {
-      setOutput("Remote user is running code...");
-      setAiAnalysis("");
+        setOutput("Running code...");
+        setAiAnalysis("");
+        setIsAnalyzing(true); 
     });
     
     return () => {
@@ -103,10 +104,13 @@ function EditorPage() {
     setAiAnalysis("");
   };
 
-  const handleRun = async () => {
+const handleRun = async () => {
     const currentCode = editorRef.current ? editorRef.current.getValue() : "";
+    
     setOutput("Running...");
     setAiAnalysis("");
+    setIsAnalyzing(true); 
+
     socket.emit('execution-started', { roomId });
 
     try {
@@ -118,16 +122,11 @@ function EditorPage() {
       const finalOutput = data.stdout || data.stderr || "Program executed with no output.";
       let finalAiAnalysis = "";
 
-      if (data.stderr) {
-        setIsAnalyzing(true);
+      if (data.stderr || data.aiExplanation) {
         finalAiAnalysis = data.aiExplanation
           ? data.aiExplanation.replace(/^(Great start|Hello|Hi|Greetings|Let's fix).*?[.!]\s*/gi, "").replace(/^\d+\.\s/gm, '* ').trim()
           : "";
       }
-
-      setOutput(finalOutput);
-      setAiAnalysis(finalAiAnalysis);
-      setIsAnalyzing(false);
 
       socket.emit('broadcast-results', { 
         roomId, 
@@ -138,6 +137,12 @@ function EditorPage() {
     } catch (err) {
       setOutput("Error: Server unreachable.");
       setIsAnalyzing(false);
+      
+      socket.emit('broadcast-results', { 
+        roomId, 
+        output: "Error: Server unreachable.", 
+        aiAnalysis: "" 
+      });
     }
   };
 
