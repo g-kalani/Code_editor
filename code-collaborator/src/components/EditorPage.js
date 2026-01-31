@@ -39,8 +39,12 @@ function EditorPage() {
     });
     
     return () => {
-      socket.emit('leave', { roomId });
-      socket.off();
+      socket.emit('leave', { roomId }); 
+      socket.off('language-changed');
+      socket.off('execution-results');
+      socket.off('remote-execution-started');
+      socket.off('user-joined');
+    
     };
   }, [roomId, username]);
 

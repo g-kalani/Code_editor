@@ -76,13 +76,26 @@ const wss = new WebSocket.Server({ noServer: true });
 io.on('connection', (socket) => {
     socket.on('join', ({ roomId, username }) => {
         socket.join(roomId);
-        socket.in(roomId).emit('user-joined', { username, socketId: socket.id });
+        socket.to(roomId).emit('user-joined', { username, socketId: socket.id });
     });
+
     socket.on('language-change', ({ roomId, newLanguage }) => {
-        socket.in(roomId).emit('language-changed', { newLanguage });
+        io.to(roomId).emit('language-changed', { newLanguage });
     });
+
     socket.on('broadcast-results', ({ roomId, output, aiAnalysis }) => {
-        socket.in(roomId).emit('execution-results', { output, aiAnalysis });
+        io.to(roomId).emit('execution-results', { output, aiAnalysis });
+    });
+
+    socket.on('execution-started', ({ roomId }) => {
+        socket.to(roomId).emit('remote-execution-started');
+    });
+
+    socket.on('disconnecting', () => {
+        const rooms = [...socket.rooms];
+        rooms.forEach((roomId) => {
+            socket.to(roomId).emit('user-left', { socketId: socket.id });
+        });
     });
 });
 
@@ -151,28 +164,30 @@ app.post('/execute', async (req, res) => {
         const classMatch = code.match(/public\s+class\s+(\w+)/);
         className = classMatch ? classMatch[1] : "Main"; 
         filename = `${className}.java`;
-        fs.writeFileSync(path.join(__dirname, filename), code);
-        executeCmd = `javac ${filename} && java ${className}`;
+        const filePath = path.join(__dirname, filename); 
+        fs.writeFileSync(filePath, code);        
+        executeCmd = `javac ${filePath} && java -cp ${__dirname} ${className}`;
     } else {
         const ext = language === 'python' ? 'py' : 'cpp';
         filename = `temp_code.${ext}`;
-        const filePath = path.join(__dirname, filename);
+        const filePath = path.join(__dirname, filename); 
         fs.writeFileSync(filePath, code);
 
         if (language === 'python') {
-            executeCmd = `python3 ${filename}`;
+            executeCmd = `python3 ${filePath}`;
         } else if (language === 'cpp') {
-            const outPath = 'temp_out';
-            executeCmd = `g++ ${filename} -o ${outPath} && ./${outPath}`;
+            const outPath = path.join(__dirname, 'temp_out');
+            executeCmd = `g++ ${filePath} -o ${outPath} && chmod +x ${outPath} && ${outPath}`;
         }
     }
 
     try {
         const { stdout, stderr } = await runCommand(executeCmd);
-        let aiExplanation = "";
+        let aiExplanation = "";        
         if (stderr && stderr.trim() !== "") {
             aiExplanation = await getGeminiErrorAnalysis(code, stderr, language);
         }
+        
         res.json({ stdout, stderr, aiExplanation }); 
     } catch (error) {
         res.status(500).json({ error: error.message });
