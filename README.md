@@ -1,6 +1,8 @@
-# AI-Powered Code Collaborator & Compiler
+# CodeSync- AI-Powered Code Collaborator & Compiler
 
-A high-performance, real-time collaborative code editor and execution environment. Features a "Cyber-Slate" modern dark theme and a specialized **AI Debugger** that uses **Retrieval-Augmented Generation (RAG)** to provide grounded fixes by referencing an extensive professional dataset.
+A high-performance, real-time collaborative code editor and execution environment. CodeSync features a "Cyber-Slate" modern dark theme and a specialized **AI Debugger** that uses **Retrieval-Augmented Generation (RAG)** to provide grounded fixes by referencing an extensive professional dataset.
+
+**Deployed link:** https://code-editor-app-euzi.onrender.com
 
 * Lobby: Enter your username and generate a unique Room ID. Use the built-in "Copy" button to invite collaborators. 
 * Editor: Select your language. The editor will sync your choice with all users in the room.
