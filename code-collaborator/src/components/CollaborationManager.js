@@ -5,9 +5,11 @@ import { MonacoBinding } from 'y-monaco';
 export const initCollaboration = (editor, roomId) => {
     const ydoc = new Y.Doc();
 
-    // Use your existing backend server for syncing
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+
     const provider = new WebsocketProvider(
-        'ws://localhost:5000', // Connect to your server
+        `${protocol}//${host}`, 
         roomId, 
         ydoc
     );

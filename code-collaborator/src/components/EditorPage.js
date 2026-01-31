@@ -106,7 +106,7 @@ function EditorPage() {
     socket.emit('execution-started', { roomId });
 
     try {
-      const { data } = await axios.post("http://localhost:5000/execute", { 
+      const { data } = await axios.post("/execute", { 
         code: currentCode, 
         language 
       });
