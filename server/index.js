@@ -83,12 +83,12 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('language-changed', { newLanguage });
     });
 
-    socket.on('broadcast-results', ({ roomId, output, aiAnalysis }) => {
-        io.to(roomId).emit('execution-results', { output, aiAnalysis });
+    socket.on('execution-started', ({ roomId }) => {
+        io.to(roomId).emit('remote-execution-started');
     });
 
-    socket.on('execution-started', ({ roomId }) => {
-        socket.to(roomId).emit('remote-execution-started');
+    socket.on('broadcast-results', ({ roomId, output, aiAnalysis }) => {
+        io.to(roomId).emit('execution-results', { output, aiAnalysis });
     });
 
     socket.on('disconnecting', () => {
@@ -96,6 +96,9 @@ io.on('connection', (socket) => {
         rooms.forEach((roomId) => {
             socket.to(roomId).emit('user-left', { socketId: socket.id });
         });
+    });
+    socket.on('clear-workspace', ({ roomId }) => {
+        io.to(roomId).emit('workspace-cleared');
     });
 });
 

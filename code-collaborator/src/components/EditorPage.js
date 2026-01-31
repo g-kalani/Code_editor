@@ -6,6 +6,7 @@ import { Group, Panel, Separator } from "react-resizable-panels";
 import { useParams, useLocation } from 'react-router-dom';
 import { socket } from '../socket';
 import { initCollaboration } from './CollaborationManager';
+import './EditorPage.css'; // Importing the separated styles
 
 function EditorPage() {
   const { roomId } = useParams();
@@ -18,7 +19,8 @@ function EditorPage() {
   const [output, setOutput] = useState("");
   const [aiAnalysis, setAiAnalysis] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
- 
+
+  // Synchronize with socket events for real-time collaboration
   useEffect(() => {
     socket.connect();
     socket.emit('join', { roomId, username });
@@ -38,6 +40,12 @@ function EditorPage() {
         setAiAnalysis("");
         setIsAnalyzing(true); 
     });
+
+    socket.on('workspace-cleared', () => {
+      setOutput("");
+      setAiAnalysis("");
+      setIsAnalyzing(false);
+    });
     
     return () => {
       socket.emit('leave', { roomId }); 
@@ -45,10 +53,10 @@ function EditorPage() {
       socket.off('execution-results');
       socket.off('remote-execution-started');
       socket.off('user-joined');
-    
     };
   }, [roomId, username]);
 
+  // Configure Monaco Editor and custom snippets
   const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
     initCollaboration(editor, roomId);
@@ -60,7 +68,6 @@ function EditorPage() {
           const suggestions = [];
           if (lang === 'cpp') {
             suggestions.push(
-              // Using backticks and escaped $ for C++ snippets
               { label: 'include', kind: monaco.languages.CompletionItemKind.Snippet, insertText: `include <\${1:iostream}>`, insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, detail: 'C++ Include Directive' },
               { label: 'main', kind: monaco.languages.CompletionItemKind.Snippet, insertText: `int main() {\n\t$0\n\treturn 0;\n}`, insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet }
             );
@@ -74,7 +81,6 @@ function EditorPage() {
                   { 
                       label: 'public class', 
                       kind: monaco.languages.CompletionItemKind.Snippet, 
-                      // Use backticks and escape the dollar sign (\$) to resolve terminal warnings
                       insertText: `public class \${1:Main} {\n\tpublic static void main(String[] args) {\n\t\t$0\n\t}\n}`, 
                       insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet 
                   }
@@ -92,115 +98,58 @@ function EditorPage() {
     socket.emit('language-change', { roomId, newLanguage: newLang });
   };
 
-    
   const handleClearCode = () => {
-    // 1. Clear the Monaco Editor content
-    if (editorRef.current) {
-      editorRef.current.setValue(""); 
-    }
-    
-    // 2. Clear the Terminal Output and AI Analysis panels
-    setOutput("");
-    setAiAnalysis("");
+      if (editorRef.current) {
+          editorRef.current.setValue(""); 
+      }
+      setOutput("");
+      setAiAnalysis("");
+      socket.emit('clear-workspace', { roomId });
   };
 
-const handleRun = async () => {
+  // Submit code to backend for execution and AI analysis
+  const handleRun = async () => {
     const currentCode = editorRef.current ? editorRef.current.getValue() : "";
-    
-    setOutput("Running...");
-    setAiAnalysis("");
-    setIsAnalyzing(true); 
-
     socket.emit('execution-started', { roomId });
 
     try {
-      const { data } = await axios.post("/execute", { 
-        code: currentCode, 
-        language 
-      });
+        const { data } = await axios.post("/execute", { 
+            code: currentCode, 
+            language 
+        });
 
-      const finalOutput = data.stdout || data.stderr || "Program executed with no output.";
-      let finalAiAnalysis = "";
+        const finalOutput = data.stdout || data.stderr || "Program executed with no output.";
+        let finalAiAnalysis = "";
 
-      if (data.stderr || data.aiExplanation) {
-        finalAiAnalysis = data.aiExplanation
-          ? data.aiExplanation.replace(/^(Great start|Hello|Hi|Greetings|Let's fix).*?[.!]\s*/gi, "").replace(/^\d+\.\s/gm, '* ').trim()
-          : "";
-      }
+        if (data.stderr || data.aiExplanation) {
+            finalAiAnalysis = data.aiExplanation
+                ? data.aiExplanation.replace(/^(Great start|Hello|Hi|Greetings|Let's fix).*?[.!]\s*/gi, "").replace(/^\d+\.\s/gm, '* ').trim()
+                : "";
+        }
 
-      socket.emit('broadcast-results', { 
-        roomId, 
-        output: finalOutput, 
-        aiAnalysis: finalAiAnalysis 
-      });
+        socket.emit('broadcast-results', { 
+            roomId, 
+            output: finalOutput, 
+            aiAnalysis: finalAiAnalysis 
+        });
 
     } catch (err) {
-      setOutput("Error: Server unreachable.");
-      setIsAnalyzing(false);
-      
-      socket.emit('broadcast-results', { 
-        roomId, 
-        output: "Error: Server unreachable.", 
-        aiAnalysis: "" 
-      });
+        const errorMsg = "Error: Server unreachable.";
+        socket.emit('broadcast-results', { 
+            roomId, 
+            output: errorMsg, 
+            aiAnalysis: "" 
+        });
+        setOutput(errorMsg);
+        setIsAnalyzing(false);
     }
   };
 
   const copyToClipboard = (text) => navigator.clipboard.writeText(text);
 
-  // --- Theme Styles ---
-  const styles = {
-    container: {
-      height: "100vh",
-      display: "flex",
-      flexDirection: "column",
-      background: "#020617", 
-      color: "#f8fafc",
-      overflow: "hidden",
-      fontFamily: "'Inter', sans-serif"
-    },
-    header: {
-      padding: "12px 24px",
-      background: "#0f172a",
-      borderBottom: "1px solid #1e293b",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      boxShadow: "0 4px 20px rgba(0,0,0,0.5)"
-    },
-    runBtn: {
-      padding: "8px 24px",
-      background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-      color: "white",
-      border: "none",
-      borderRadius: "8px",
-      fontWeight: "700",
-      cursor: "pointer",
-      boxShadow: "0 0 15px rgba(59, 130, 246, 0.4)"
-    },
-    panelLabel: {
-      color: "#94a3b8",
-      fontSize: "11px",
-      fontWeight: "800",
-      textTransform: "uppercase",
-      letterSpacing: "1.5px",
-      marginBottom: "12px",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center"
-    }
-  };
-
   return (
-    <div style={styles.container}>
-      <style>{`
-        .monaco-editor, .monaco-editor-background, .monaco-editor .margin {
-          background-color: #020617 !important;
-        }
-        /* ... spinner styles ... */
-      `}</style>
-
-      <header style={styles.header}>
+    <div className="editor-container">
+      <header className="editor-header">
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
           <select 
             value={language} 
@@ -211,24 +160,11 @@ const handleRun = async () => {
             <option value="cpp">C++</option>
             <option value="java">Java</option>
           </select>
-          <button onClick={handleRun} style={styles.runBtn}>
+          <button onClick={handleRun} className="run-btn">
             RUN CODE
           </button>
           
-          {/* NEW: Clear Code button now resides in the header next to the Run button */}
-          <button 
-            onClick={handleClearCode} 
-            style={{ 
-                background: "transparent", 
-                color: "#94a3b8", 
-                border: "1px solid #334155", 
-                padding: "8px 16px", 
-                borderRadius: "8px", 
-                fontWeight: "600", 
-                cursor: "pointer",
-                fontSize: "12px"
-            }}
-          >
+          <button onClick={handleClearCode} className="clear-btn">
             CLEAR CODE
           </button>
         </div>
@@ -241,7 +177,6 @@ const handleRun = async () => {
       <main style={{ flex: 1, overflow: "hidden" }}>
         <Group direction="horizontal">
           <Panel defaultSize={55} minSize={30}>
-            {/* EDITOR: Deepest Layer (#020617) */}
             <div style={{ height: "100%", background: "#020617", borderRight: "1px solid #1e293b" }}>
               <Editor 
                 height="100%" 
@@ -265,9 +200,8 @@ const handleRun = async () => {
           <Panel defaultSize={45} minSize={20}>
             <Group direction="vertical">
               <Panel defaultSize={40}>
-                {/* TERMINAL: Middle Layer (#0b1120) */}
                 <div style={{ height: "100%", padding: "20px", background: "#0b1120", overflowY: "auto" }}>
-                  <div style={styles.panelLabel}>
+                  <div className="panel-label">
                     <span>Terminal Output</span>
                   </div>
                   <pre style={{ margin: 0, color: "#10b981", fontSize: "13px", lineHeight: "1.6", fontFamily: "'Fira Code', monospace" }}>
@@ -279,9 +213,8 @@ const handleRun = async () => {
               <Separator style={{ height: "2px", background: "#1e293b", cursor: "row-resize" }} />
 
               <Panel defaultSize={60}>
-                {/* AI DEBUGGER: Surface Layer (#0f172a) */}
                 <div style={{ height: "100%", display: "flex", flexDirection: "column", background: "#0f172a" }}>
-                  <div style={{ ...styles.panelLabel, padding: "12px 20px", borderBottom: "1px solid #1e293b", background: "#1e293b" }}>
+                  <div className={`panel-label ai-debugger-header`}>
                     <span>AI Debugger Insights</span>
                   </div>
                   <div style={{ flex: 1, padding: "24px", overflowY: "auto", background: "#0f172a" }}>

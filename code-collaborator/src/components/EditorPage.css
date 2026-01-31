@@ -1,0 +1,83 @@
+/* Layout & Theme */
+.editor-container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #020617;
+  color: #f8fafc;
+  overflow: hidden;
+  font-family: 'Inter', sans-serif;
+}
+
+.editor-header {
+  padding: 12px 24px;
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Monaco Editor Overrides */
+.monaco-editor, 
+.monaco-editor-background, 
+.monaco-editor .margin {
+  background-color: #020617 !important;
+}
+
+/* Buttons */
+.run-btn {
+  padding: 8px 24px;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  borderRadius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
+}
+
+.clear-btn {
+  background: transparent;
+  color: #94a3b8;
+  border: 1px solid #334155;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* Panels & Labels */
+.panel-label {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ai-debugger-header {
+  padding: 12px 20px;
+  border-bottom: 1px solid #1e293b;
+  background: #1e293b;
+}
+
+/* Loading Spinner */
+.spinner {
+  width: 20px;
+  height: 20px;
+  border: 2px solid rgba(59, 130, 246, 0.3);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
