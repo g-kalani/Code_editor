@@ -144,13 +144,6 @@ async function getGeminiErrorAnalysis(code, error, language) {
     }
 }
 
-    try {
-        const result = await model.generateContent(prompt);
-        return result.response.text();
-    } catch (err) {
-        return `AI analysis failed. Error: ${err.message}`;
-    }
-}
 
 app.post('/execute', async (req, res) => {
     const { code, language } = req.body;
