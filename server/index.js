@@ -10,7 +10,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const WebSocket = require('ws');
 
-// --- YJS SETUP ---
+// --- YJS & WEBSOCKET SETUP ---
 const yWebsocketDir = path.dirname(require.resolve('y-websocket/package.json'));
 const findUtilsPath = (dir) => {
     const targets = ['utils.js', 'utils.cjs', 'index.js', 'index.cjs'];
@@ -26,19 +26,18 @@ const findUtilsPath = (dir) => {
 
 const yUtilsPath = findUtilsPath(yWebsocketDir);
 if (!yUtilsPath) {
+    console.error("❌ CRITICAL ERROR: Could not locate y-websocket utilities.");
     process.exit(1);
 }
-const { setupWSConnection } = require(yUtilsPath);
 
+const { setupWSConnection } = require(yUtilsPath);
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from the build folder
 const buildPath = path.join(__dirname, '../code-collaborator/build');
 app.use(express.static(buildPath));
 
-// Catch-all route for React using Regex to avoid path-to-regexp errors
 app.get(/^(?!\/api|\/execute).+/, (req, res) => {
     res.sendFile(path.join(buildPath, 'index.html'));
 });
@@ -47,11 +46,9 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: "*" } });
 const wss = new WebSocket.Server({ noServer: true });
 
-// --- DATASET LOADING FIX ---
-// The dataset is in the root /app folder, one level up from /app/server
+// --- DATASET LOADING ---
 const datasetFileName = 'dataset.jsonl';
 let localDataset = [];
-
 const loadJSONL = async (filePath) => {
     const data = [];
     if (!fs.existsSync(filePath)) return data;
@@ -67,20 +64,18 @@ const loadJSONL = async (filePath) => {
 };
 
 (async () => {
-    // Look for dataset in the parent directory (/app)
-    const parentPath = path.join(__dirname, '..', datasetFileName);
+    const localPath = path.join(__dirname, datasetFileName);
     try {
-        localDataset = await loadJSONL(parentPath);
+        localDataset = await loadJSONL(localPath);
         console.log(`✅ Loaded ${localDataset.length} examples.`);
-    } catch (err) {
-        console.error("Error loading dataset:", err.message);
-    }
+    } catch (err) { console.error("Error loading dataset:", err.message); }
 })();
 
-// --- AI & COLLABORATION ---
+// Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
 
+// --- COLLABORATION LOGIC ---
 io.on('connection', (socket) => {
     socket.on('join', ({ roomId, username }) => {
         socket.join(roomId);
@@ -103,7 +98,6 @@ server.on('upgrade', (request, socket, head) => {
     }
 });
 
-// --- EXECUTION LOGIC FIX ---
 const runCommand = (cmd) => new Promise((resolve) => {
     exec(cmd, { timeout: 10000 }, (error, stdout, stderr) => {
         resolve({ stdout, stderr: stderr || (error ? error.message : "") });
@@ -114,9 +108,8 @@ app.post('/execute', async (req, res) => {
     const { code, language } = req.body;
     let filename = "";
     let className = "";
-    let executeCmd = "";
+    let executeCmd = ""; 
 
-    // Save files in the /app/server directory
     if (language === 'java') {
         const classMatch = code.match(/public\s+class\s+(\w+)/);
         className = classMatch ? classMatch[1] : "Main"; 
@@ -133,28 +126,21 @@ app.post('/execute', async (req, res) => {
             executeCmd = `python3 ${filePath}`;
         } else if (language === 'cpp') {
             const outPath = path.join(__dirname, 'temp_out');
-            executeCmd = `g++ ${filePath} -o ${outPath} && ${outPath}`;
+            executeCmd = `g++ ${filePath} -o ${outPath} && chmod +x ${outPath} && ${outPath}`;
         }
     }
 
     try {
         const { stdout, stderr } = await runCommand(executeCmd);
-        let aiExplanation = "";
-        if (stderr && stderr.trim()) {
-            // Your getGeminiErrorAnalysis function here
-        }
-        res.json({ stdout, stderr, aiExplanation });
+        res.json({ stdout, stderr, aiExplanation: "" }); 
     } catch (error) {
         res.status(500).json({ error: error.message });
     } finally {
-        // Cleanup logic
-        try {
-            const filesToClean = [filename, 'temp_out', `${className}.class`];
-            filesToClean.forEach(f => {
-                const p = path.join(__dirname, f);
-                if (fs.existsSync(p)) fs.unlinkSync(p);
-            });
-        } catch (e) {}
+        // Cleanup
+        [filename, 'temp_out', `${className}.class`].forEach(f => {
+            const p = path.join(__dirname, f);
+            if (fs.existsSync(p)) fs.unlinkSync(p);
+        });
     }
 });
 
