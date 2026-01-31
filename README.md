@@ -11,7 +11,7 @@ A high-performance, real-time collaborative code editor and execution environmen
 
 ---
 
-## ✨ Features
+##  Features
 
 * **Real-Time Collaboration**: Multi-user synchronization using **Socket.io**, allowing teams to code together in the same room.
 * **Grounded AI Debugging (RAG)**: Now utilizes a local dataset of **1,500+ examples** (CodeSearchNet & MBPP) to provide 🔍 `[DATASET-GROUNDED ANALYSIS]`.
@@ -22,7 +22,7 @@ A high-performance, real-time collaborative code editor and execution environmen
 
 ---
 
-## 🏗️ System Architecture
+##  System Architecture
 
 * **Frontend**: React.js with **Monaco Editor** and `react-resizable-panels`.
 * **Collaboration**: **Socket.io** for instant state sync and language selection across clients.
@@ -31,7 +31,7 @@ A high-performance, real-time collaborative code editor and execution environmen
 
 ---
 
-## 🛠️ Installation & Setup
+##  Installation & Setup
 
 ### 1. Prerequisites
 * **Node.js** (v18+)
@@ -73,7 +73,7 @@ cd client
 npm install
 ```
  
-## 🚦 How to Run
+##  How to Run
 ### 1. Start the Backend
 Navigate to the /server folder and start the Node.js server:
 
