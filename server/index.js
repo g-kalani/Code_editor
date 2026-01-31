@@ -38,17 +38,10 @@ app.use(express.json());
 const buildPath = path.join(__dirname, '../code-collaborator/build');
 app.use(express.static(buildPath));
 
-app.get(/^(?!\/api|\/execute).+/, (req, res) => {
-    res.sendFile(path.join(buildPath, 'index.html'));
-});
-
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
-const wss = new WebSocket.Server({ noServer: true });
-
 // --- DATASET LOADING ---
 const datasetFileName = 'dataset.jsonl';
 let localDataset = [];
+
 const loadJSONL = async (filePath) => {
     const data = [];
     if (!fs.existsSync(filePath)) return data;
@@ -56,24 +49,36 @@ const loadJSONL = async (filePath) => {
     const rl = readline.createInterface({ input: fileStream, terminal: false });
     for await (const line of rl) {
         if (line.trim()) {
-            try { data.push(JSON.parse(line)); } 
-            catch (err) { }
+            try {
+                data.push(JSON.parse(line));
+            } catch (err) {
+                // Ignore malformed JSON lines
+            }
         }
     }
     return data;
 };
 
-(async () => {
+// Initialize Dataset context
+async function initializeDataset() {
     const localPath = path.join(__dirname, datasetFileName);
     try {
         localDataset = await loadJSONL(localPath);
         console.log(`✅ Loaded ${localDataset.length} examples.`);
-    } catch (err) { console.error("Error loading dataset:", err.message); }
-})();
+    } catch (err) {
+        console.error("Error loading dataset:", err.message);
+    }
+}
+initializeDataset();
 
-// Initialize Gemini
+// --- GEMINI SETUP ---
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); 
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Note: Ensure version is correct (e.g., 1.5-flash)
+
+// --- SERVER SETUP ---
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
+const wss = new WebSocket.Server({ noServer: true });
 
 // --- COLLABORATION LOGIC ---
 io.on('connection', (socket) => {
@@ -98,6 +103,7 @@ server.on('upgrade', (request, socket, head) => {
     }
 });
 
+// --- HELPER FUNCTIONS ---
 const runCommand = (cmd) => new Promise((resolve) => {
     exec(cmd, { timeout: 10000 }, (error, stdout, stderr) => {
         resolve({ stdout, stderr: stderr || (error ? error.message : "") });
@@ -105,10 +111,10 @@ const runCommand = (cmd) => new Promise((resolve) => {
 });
 
 async function getGeminiErrorAnalysis(code, error, language) {
-    const languageExamples = localDataset.filter(item => item.lang === language).slice(0, 3); 
-    const hasExamples = languageExamples.length > 0; // Check if we have data
+    const languageExamples = localDataset.filter(item => item.lang === language).slice(0, 3);
+    const hasExamples = languageExamples.length > 0;
 
-    const examplesContext = hasExamples 
+    const examplesContext = hasExamples
         ? languageExamples.map((ex, i) => `Example ${i + 1}:\nError: ${ex.error_context}\nFix:\n${ex.fix || ex.code}`).join("\n\n")
         : "No specific local examples found for this language.";
 
@@ -120,7 +126,7 @@ async function getGeminiErrorAnalysis(code, error, language) {
     2. The ONLY triple-backtick block allowed is at the very end of your response.
     3. ${hasExamples ? 'Start with the tag: [DATASET-GROUNDED ANALYSIS]' : 'Do NOT use the dataset-grounded tag.'}
 
-    Reference Examples from my local database:
+    Reference Examples:
     ${examplesContext}
 
     Student Code:
@@ -133,62 +139,77 @@ async function getGeminiErrorAnalysis(code, error, language) {
     [Explanation in plain text - max 2 sentences]
     
     Corrected Code:
-    [\`\`\`language block here]
+    [\`\`\`${language} block here]
 `;
 
     try {
         const result = await model.generateContent(prompt);
-        return result.response.text();
+        const response = await result.response;
+        return response.text();
     } catch (err) {
+        console.error("Gemini Error:", err);
         return `AI analysis failed. Error: ${err.message}`;
     }
 }
 
-
+// --- ROUTES ---
 app.post('/execute', async (req, res) => {
     const { code, language } = req.body;
     let filename = "";
     let className = "";
-    let executeCmd = ""; 
-
-    if (language === 'java') {
-        const classMatch = code.match(/public\s+class\s+(\w+)/);
-        className = classMatch ? classMatch[1] : "Main"; 
-        filename = `${className}.java`;
-        fs.writeFileSync(path.join(__dirname, filename), code);
-        executeCmd = `javac ${path.join(__dirname, filename)} && java -cp ${__dirname} ${className}`;
-    } else {
-        const ext = language === 'python' ? 'py' : 'cpp';
-        filename = `temp_code.${ext}`;
-        const filePath = path.join(__dirname, filename);
-        fs.writeFileSync(filePath, code);
-
-        if (language === 'python') {
-            executeCmd = `python3 ${filePath}`;
-        } else if (language === 'cpp') {
-            const outPath = path.join(__dirname, 'temp_out');
-            executeCmd = `g++ ${filePath} -o ${outPath} && chmod +x ${outPath} && ${outPath}`;
-        }
-    }
+    let executeCmd = "";
 
     try {
+        if (language === 'java') {
+            const classMatch = code.match(/public\s+class\s+(\w+)/);
+            className = classMatch ? classMatch[1] : "Main";
+            filename = `${className}.java`;
+            fs.writeFileSync(path.join(__dirname, filename), code);
+            executeCmd = `javac ${filename} && java ${className}`;
+        } else {
+            const ext = language === 'python' ? 'py' : 'cpp';
+            filename = `temp_code.${ext}`;
+            const filePath = path.join(__dirname, filename);
+            fs.writeFileSync(filePath, code);
+
+            if (language === 'python') {
+                executeCmd = `python3 ${filename}`;
+            } else if (language === 'cpp') {
+                const outPath = 'temp_out';
+                executeCmd = `g++ ${filename} -o ${outPath} && ./${outPath}`;
+            }
+        }
+
         const { stdout, stderr } = await runCommand(executeCmd);
         let aiExplanation = "";
+        
         if (stderr && stderr.trim() !== "") {
             aiExplanation = await getGeminiErrorAnalysis(code, stderr, language);
         }
-        res.json({ stdout, stderr, aiExplanation }); 
+        
+        res.json({ stdout, stderr, aiExplanation });
     } catch (error) {
         res.status(500).json({ error: error.message });
     } finally {
-        [filename, 'temp_out', `${className}.class`].forEach(f => {
-            const p = path.join(__dirname, f);
-            if (fs.existsSync(p)) fs.unlinkSync(p);
+        // Cleanup generated files
+        const filesToCleanup = [filename, 'temp_out', `${className}.class`];
+        filesToCleanup.forEach(f => {
+            if (f) {
+                const p = path.join(__dirname, f);
+                if (fs.existsSync(p)) {
+                    try { fs.unlinkSync(p); } catch (e) {}
+                }
+            }
         });
     }
 });
 
+// Catch-all to serve React app
+app.get('*', (req, res) => {
+    res.sendFile(path.join(buildPath, 'index.html'));
+});
+
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`🚀 Server is running on port ${PORT}`);
 });
