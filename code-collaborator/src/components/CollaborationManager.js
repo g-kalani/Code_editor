@@ -1,5 +1,11 @@
+import * as Y from 'yjs';
+import { WebsocketProvider } from 'y-websocket';
+import { MonacoBinding } from 'y-monaco';
+
 export const initCollaboration = (editor, roomId) => {
     const ydoc = new Y.Doc();
+
+    // Use the production URL when on Render, otherwise localhost
     const serverUrl = process.env.NODE_ENV === 'production' 
         ? 'wss://code-editor-app-euzi.onrender.com' 
         : 'ws://localhost:5000';
