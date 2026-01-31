@@ -106,16 +106,22 @@ const runCommand = (cmd) => new Promise((resolve) => {
 
 async function getGeminiErrorAnalysis(code, error, language) {
     const languageExamples = localDataset.filter(item => item.lang === language).slice(0, 3); 
-    const examplesContext = languageExamples.map((ex, i) => 
-        `Example ${i + 1}:\nError: ${ex.error_context}\nFix:\n${ex.fix || ex.code}`
-    ).join("\n\n");
+    const hasExamples = languageExamples.length > 0; // Check if we have data
+
+    const examplesContext = hasExamples 
+        ? languageExamples.map((ex, i) => `Example ${i + 1}:\nError: ${ex.error_context}\nFix:\n${ex.fix || ex.code}`).join("\n\n")
+        : "No specific local examples found for this language.";
 
     const prompt = `
     You are an expert programming tutor for ${language}. 
-    🔍 [DATASET-GROUNDED ANALYSIS]
+    
+    STRICT FORMATTING RULES:
+    1. NEVER use backticks (\`) or code blocks (\`\`\`) in the explanation section.
+    2. The ONLY triple-backtick block allowed is at the very end of your response.
+    3. ${hasExamples ? 'Start with the tag: [DATASET-GROUNDED ANALYSIS]' : 'Do NOT use the dataset-grounded tag.'}
 
-    Reference Examples:
-    ${examplesContext || "No local examples found."}
+    Reference Examples from my local database:
+    ${examplesContext}
 
     Student Code:
     ${code}
@@ -129,6 +135,14 @@ async function getGeminiErrorAnalysis(code, error, language) {
     Corrected Code:
     [\`\`\`language block here]
 `;
+
+    try {
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    } catch (err) {
+        return `AI analysis failed. Error: ${err.message}`;
+    }
+}
 
     try {
         const result = await model.generateContent(prompt);
