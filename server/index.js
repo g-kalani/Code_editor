@@ -73,7 +73,7 @@ const loadJSONL = async (filePath) => {
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); 
 
 // --- COLLABORATION LOGIC ---
 io.on('connection', (socket) => {
@@ -104,6 +104,40 @@ const runCommand = (cmd) => new Promise((resolve) => {
     });
 });
 
+async function getGeminiErrorAnalysis(code, error, language) {
+    const languageExamples = localDataset.filter(item => item.lang === language).slice(0, 3); 
+    const examplesContext = languageExamples.map((ex, i) => 
+        `Example ${i + 1}:\nError: ${ex.error_context}\nFix:\n${ex.fix || ex.code}`
+    ).join("\n\n");
+
+    const prompt = `
+    You are an expert programming tutor for ${language}. 
+    🔍 [DATASET-GROUNDED ANALYSIS]
+
+    Reference Examples:
+    ${examplesContext || "No local examples found."}
+
+    Student Code:
+    ${code}
+    
+    Error Message:
+    ${error}
+    
+    Response Structure:
+    [Explanation in plain text - max 2 sentences]
+    
+    Corrected Code:
+    [\`\`\`language block here]
+`;
+
+    try {
+        const result = await model.generateContent(prompt);
+        return result.response.text();
+    } catch (err) {
+        return `AI analysis failed. Error: ${err.message}`;
+    }
+}
+
 app.post('/execute', async (req, res) => {
     const { code, language } = req.body;
     let filename = "";
@@ -132,11 +166,14 @@ app.post('/execute', async (req, res) => {
 
     try {
         const { stdout, stderr } = await runCommand(executeCmd);
-        res.json({ stdout, stderr, aiExplanation: "" }); 
+        let aiExplanation = "";
+        if (stderr && stderr.trim() !== "") {
+            aiExplanation = await getGeminiErrorAnalysis(code, stderr, language);
+        }
+        res.json({ stdout, stderr, aiExplanation }); 
     } catch (error) {
         res.status(500).json({ error: error.message });
     } finally {
-        // Cleanup
         [filename, 'temp_out', `${className}.class`].forEach(f => {
             const p = path.join(__dirname, f);
             if (fs.existsSync(p)) fs.unlinkSync(p);
